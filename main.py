@@ -51,7 +51,7 @@ class Sites:
 
 class AutoCrawler:
     def __init__(self, skip_already_exist=True, n_threads=4, do_google=True, do_naver=True, download_path='download',
-                 full_resolution=False, face=False):
+                 full_resolution=False, face=False, number = 1000):
         """
         :param skip_already_exist: Skips keyword already downloaded before. This is needed when re-downloading.
         :param n_threads: Number of threads to download.
@@ -69,6 +69,7 @@ class AutoCrawler:
         self.download_path = download_path
         self.full_resolution = full_resolution
         self.face = face
+        self.number = number
 
         os.makedirs('./{}'.format(self.download_path), exist_ok=True)
 
@@ -176,7 +177,7 @@ class AutoCrawler:
                 print('Download failed - ', e)
                 continue
 
-    def download_from_site(self, keyword, site_code):
+    def download_from_site(self, keyword, site_code, number):
         site_name = Sites.get_text(site_code)
         add_url = Sites.get_face_url(site_code) if self.face else ""
 
@@ -190,16 +191,16 @@ class AutoCrawler:
             print('Collecting links... {} from {}'.format(keyword, site_name))
 
             if site_code == Sites.GOOGLE:
-                links = collect.google(keyword, add_url)
+                links = collect.google(keyword, add_url, number)
 
             elif site_code == Sites.NAVER:
-                links = collect.naver(keyword, add_url)
+                links = collect.naver(keyword, add_url, number)
 
             elif site_code == Sites.GOOGLE_FULL:
-                links = collect.google_full(keyword, add_url)
+                links = collect.google_full(keyword, add_url, number)
 
             elif site_code == Sites.NAVER_FULL:
-                links = collect.naver_full(keyword, add_url)
+                links = collect.naver_full(keyword, add_url, number)
 
             else:
                 print('Invalid Site Code')
@@ -214,7 +215,7 @@ class AutoCrawler:
             print('Exception {}:{} - {}'.format(site_name, keyword, e))
 
     def download(self, args):
-        self.download_from_site(keyword=args[0], site_code=args[1])
+        self.download_from_site(keyword=args[0], site_code=args[1], number=args[2])
 
     def do_crawling(self):
         keywords = self.get_keywords()
@@ -229,15 +230,15 @@ class AutoCrawler:
 
             if self.do_google:
                 if self.full_resolution:
-                    tasks.append([keyword, Sites.GOOGLE_FULL])
+                    tasks.append([keyword, Sites.GOOGLE_FULL, self.number])
                 else:
-                    tasks.append([keyword, Sites.GOOGLE])
+                    tasks.append([keyword, Sites.GOOGLE, self.number])
 
             if self.do_naver:
                 if self.full_resolution:
-                    tasks.append([keyword, Sites.NAVER_FULL])
+                    tasks.append([keyword, Sites.NAVER_FULL, self.number])
                 else:
-                    tasks.append([keyword, Sites.NAVER])
+                    tasks.append([keyword, Sites.NAVER, self.number])
 
         pool = Pool(self.n_threads)
         pool.map_async(self.download, tasks)
@@ -302,6 +303,8 @@ if __name__ == '__main__':
     parser.add_argument('--naver', type=str, default='true', help='Download from naver.com (boolean)')
     parser.add_argument('--full', type=str, default='false', help='Download full resolution image instead of thumbnails (slow)')
     parser.add_argument('--face', type=str, default='false', help='Face search mode')
+    parser.add_argument('--number', type=str, default= '1000', help='Face search mode')
+
     args = parser.parse_args()
 
     _skip = False if str(args.skip).lower() == 'false' else True
@@ -310,8 +313,9 @@ if __name__ == '__main__':
     _naver = False if str(args.naver).lower() == 'false' else True
     _full = False if str(args.full).lower() == 'false' else True
     _face = False if str(args.face).lower() == 'false' else True
+    _number = 1000 if str(args.number) == '1000' else int(args.number)
 
-    print('Options - skip:{}, threads:{}, google:{}, naver:{}, full_resolution:{}, face:{}'.format(_skip, _threads, _google, _naver, _full, _face))
+    print('Options - skip:{}, threads:{}, google:{}, naver:{}, full_resolution:{}, face:{}, number:{}'.format(_skip, _threads, _google, _naver, _full, _face , _number))
 
-    crawler = AutoCrawler(skip_already_exist=_skip, n_threads=_threads, do_google=_google, do_naver=_naver, full_resolution=_full, face=_face)
+    crawler = AutoCrawler(skip_already_exist=_skip, n_threads=_threads, do_google=_google, do_naver=_naver, full_resolution=_full, face=_face, number=_number)
     crawler.do_crawling()
