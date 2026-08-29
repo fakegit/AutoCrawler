@@ -37,8 +37,13 @@ from .sites import Site
 logger = logging.getLogger(__name__)
 
 
-def _ignore_sigint() -> None:
+def _init_worker() -> None:
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+    # Worker processes are spawned fresh (the default start method on macOS/Windows),
+    # so they don't inherit the main process's logging.basicConfig() call - without
+    # this, every logger.info() from a worker (link collection, download progress,
+    # "Done") is silently dropped instead of printed.
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 def warm_up_chrome_profile(config: CrawlConfig) -> None:
@@ -186,7 +191,7 @@ def run(config: CrawlConfig) -> None:
         except KeyboardInterrupt:
             pass
     else:
-        with ProcessPoolExecutor(max_workers=config.n_processes, initializer=_ignore_sigint) as executor:
+        with ProcessPoolExecutor(max_workers=config.n_processes, initializer=_init_worker) as executor:
             try:
                 list(executor.map(worker, tasks))
             except KeyboardInterrupt:

@@ -37,6 +37,15 @@ class CrawlConfig:
     limit: int = 0
     proxy_list: list[str] = field(default_factory=list)
 
+    def __repr__(self) -> str:
+        # Render Path fields as plain strings (e.g. 'keywords.txt') instead of the
+        # default dataclass repr's PosixPath('keywords.txt').
+        fields = ", ".join(
+            f"{name}={str(value)!r}" if isinstance(value, Path) else f"{name}={value!r}"
+            for name, value in vars(self).items()
+        )
+        return f"{type(self).__name__}({fields})"
+
 
 @dataclass(frozen=True)
 class CrawlTask:
