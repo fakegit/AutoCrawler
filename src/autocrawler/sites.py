@@ -14,11 +14,20 @@ Copyright 2018 YoongiKim
    limitations under the License.
 """
 
-# Kept for backwards compatibility with `python3 main.py ...` usage from
-# older docs/tutorials. Requires the package to be installed (`pip install -e .`).
-# Prefer `autocrawler ...` or `python -m autocrawler ...` going forward.
+from __future__ import annotations
 
-from autocrawler.cli import main
+from enum import StrEnum
 
-if __name__ == "__main__":
-    main()
+
+class Site(StrEnum):
+    """Supported image search sites."""
+
+    GOOGLE = "google"
+    NAVER = "naver"
+
+
+def face_query_param(site: Site) -> str:
+    """Query string suffix that restricts results to faces, per site."""
+    if site is Site.GOOGLE:
+        return "&tbs=itp:face"
+    return "&face=1"

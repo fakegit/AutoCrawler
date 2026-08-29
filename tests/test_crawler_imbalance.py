@@ -14,11 +14,20 @@ Copyright 2018 YoongiKim
    limitations under the License.
 """
 
-# Kept for backwards compatibility with `python3 main.py ...` usage from
-# older docs/tutorials. Requires the package to be installed (`pip install -e .`).
-# Prefer `autocrawler ...` or `python -m autocrawler ...` going forward.
+from pathlib import Path
 
-from autocrawler.cli import main
+from autocrawler.crawler import find_undersized_dirs
 
-if __name__ == "__main__":
-    main()
+
+def test_find_undersized_dirs_flags_below_half_average():
+    counts = {Path("a"): 100, Path("b"): 100, Path("c"): 10}
+    assert find_undersized_dirs(counts) == {Path("c"): 10}
+
+
+def test_find_undersized_dirs_returns_empty_when_balanced():
+    counts = {Path("a"): 10, Path("b"): 11}
+    assert find_undersized_dirs(counts) == {}
+
+
+def test_find_undersized_dirs_handles_empty_input():
+    assert find_undersized_dirs({}) == {}

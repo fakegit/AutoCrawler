@@ -13,12 +13,3 @@ Copyright 2018 YoongiKim
    See the License for the specific language governing permissions and
    limitations under the License.
 """
-
-# Kept for backwards compatibility with `python3 main.py ...` usage from
-# older docs/tutorials. Requires the package to be installed (`pip install -e .`).
-# Prefer `autocrawler ...` or `python -m autocrawler ...` going forward.
-
-from autocrawler.cli import main
-
-if __name__ == "__main__":
-    main()
