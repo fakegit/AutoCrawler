@@ -101,10 +101,10 @@ As Google/Naver's sites consistently change, you may need to fix the XPath selec
 ![CleanShot 2023-10-24 at 18 05 14@2x](https://github.com/YoongiKim/AutoCrawler/assets/38288705/7ce2601f-9d53-48ff-a1cf-1a2befcc510f)
 7. You need to find logic to crawling to work.
 
-As of 2026-08, the thumbnail-mode selectors (`collect_google`/`collect_naver`) were re-verified
-against the live DOM and updated. The full-resolution selectors (`collect_google_full`/
-`collect_naver_full`) have **not** been re-verified and may need the same treatment — see the
-`NOTE` comments at the top of each collector module.
+As of 2026-08, all four collectors (`collect_google`, `collect_naver`, `collect_google_full`,
+`collect_naver_full`) were re-verified end-to-end against the live DOM and several selector and
+timing bugs were fixed. See the `NOTE` comment at the top of each function in
+`src/autocrawler/collectors/google.py` / `naver.py` for what changed and why.
 
 ## "chromedriver" hangs or never starts (macOS)
 

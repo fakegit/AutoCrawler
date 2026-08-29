@@ -191,11 +191,21 @@ def run(config: CrawlConfig) -> None:
         except KeyboardInterrupt:
             pass
     else:
-        with ProcessPoolExecutor(max_workers=config.n_processes, initializer=_init_worker) as executor:
+        executor = ProcessPoolExecutor(max_workers=config.n_processes, initializer=_init_worker)
+        try:
             try:
                 list(executor.map(worker, tasks))
             except KeyboardInterrupt:
-                executor.shutdown(wait=False, cancel_futures=True)
+                # Workers ignore SIGINT (see _init_worker), so Ctrl+C only raises here in the
+                # main process - cancelling futures would just skip ones that haven't started
+                # yet, then block waiting for whatever's already running to finish on its own
+                # (which can take a very long time). Terminate the worker processes directly:
+                # they don't ignore SIGTERM.
+                logger.warning("Interrupted - terminating worker processes...")
+                for process in executor._processes.values():
+                    process.terminate()
+        finally:
+            executor.shutdown(wait=True)
 
     logger.info("Task ended. Pool join.")
     imbalance_check(config.download_path)

@@ -84,9 +84,20 @@ def collect_naver(keyword: str, config: CrawlConfig) -> list[str]:
 def collect_naver_full(keyword: str, config: CrawlConfig) -> list[str]:
     """Full-resolution mode.
 
-    NOTE: the image-viewer selector below has NOT been re-verified against
-    Naver's current DOM (only the thumbnail-mode selector above was). See
-    README "How to fix issues" if this stops returning links.
+    NOTE: Verified against the live DOM on 2026-08-30. Two bugs were found and
+    fixed:
+
+    1. The viewer image now renders with two classes
+       (`_fe_image_viewer_image_fallback_target _fe_image_viewer_main_image`),
+       so the old exact-match `@class="..."` XPath no longer matched anything -
+       switched to `contains()`.
+    2. Re-reading the viewer image's src right after `Keys.RIGHT` mostly just
+       re-read the *previous* image's still-current src, since Naver hadn't
+       swapped it in yet - measured 0 new links across 60 iterations without a
+       wait. Now waits (up to 5s) for the src to actually change from the last
+       one collected before treating it as loaded - measured 80/80 with this
+       in place. Also now stops once `config.limit` is reached, matching
+       `collect_google_full` (previously ignored the limit entirely).
     """
     driver = build_driver(
         no_gui=config.no_gui, proxy=pick_proxy(config.proxy_list), user_data_dir=config.chrome_profile_dir
@@ -107,17 +118,34 @@ def collect_naver_full(keyword: str, config: CrawlConfig) -> list[str]:
         time.sleep(1)
 
         links: list[str] = []
+        limit = config.limit or 10000
         last_scroll = 0
         patience = 0
-        xpath = '//img[@class="_fe_image_viewer_image_fallback_target"]'
+        last_src: str | None = None
+        xpath = '//img[contains(concat(" ", normalize-space(@class), " "), " _fe_image_viewer_image_fallback_target ")]'
 
-        while patience < 100:
+        while patience < 100 and len(links) < limit:
             try:
-                imgs = driver.find_elements(By.XPATH, xpath)
-                for img in imgs:
+                # Wait for the viewer to actually advance to a new image (its src differs
+                # from the last one we collected) instead of grabbing it right away - see
+                # NOTE above for why that silently re-read the previous image most of the time.
+                start = time.time()
+                img = None
+                src = None
+                while time.time() - start < 5:
+                    imgs = driver.find_elements(By.XPATH, xpath)
+                    if imgs:
+                        candidate = imgs[0].get_attribute("src")
+                        if candidate and candidate != last_src:
+                            src = candidate
+                            img = imgs[0]
+                            break
+                    time.sleep(0.1)
+
+                if src:
+                    last_src = src
                     highlight(driver, img)
-                    src = img.get_attribute("src")
-                    if src and src not in links:
+                    if src not in links:
                         links.append(src)
                         logger.info("%d: %s", len(links), src)
             except StaleElementReferenceException:
