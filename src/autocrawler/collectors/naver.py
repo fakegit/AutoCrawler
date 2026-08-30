@@ -84,8 +84,7 @@ def collect_naver(keyword: str, config: CrawlConfig) -> list[str]:
 def collect_naver_full(keyword: str, config: CrawlConfig) -> list[str]:
     """Full-resolution mode.
 
-    NOTE: Verified against the live DOM on 2026-08-30. Two bugs were found and
-    fixed:
+    NOTE: Verified against the live DOM on 2026-08-30. Bugs found and fixed:
 
     1. The viewer image now renders with two classes
        (`_fe_image_viewer_image_fallback_target _fe_image_viewer_main_image`),
@@ -98,6 +97,16 @@ def collect_naver_full(keyword: str, config: CrawlConfig) -> list[str]:
        one collected before treating it as loaded - measured 80/80 with this
        in place. Also now stops once `config.limit` is reached, matching
        `collect_google_full` (previously ignored the limit entirely).
+    3. End-of-results relied only on the scroll position going stale, same
+       risk as `collect_google_full`'s NOTE (4). Naver adds a literal
+       `disabled` class to the `_fe_image_viewer_next_button` link once the
+       last image is shown, so that's now checked directly (same
+       disabled-must-hold-for-15s / shortened post-disabled wait pattern as
+       `collect_google_full`, for the same reasons); the scroll-based
+       patience counter stays as a fallback. The disabled check is wrapped in
+       its own `except StaleElementReferenceException` - see
+       `collect_google_full`'s NOTE (6) for why an unguarded read here would
+       be worse than not checking at all.
     """
     driver = build_driver(
         no_gui=config.no_gui, proxy=pick_proxy(config.proxy_list), user_data_dir=config.chrome_profile_dir
@@ -122,17 +131,23 @@ def collect_naver_full(keyword: str, config: CrawlConfig) -> list[str]:
         last_scroll = 0
         patience = 0
         last_src: str | None = None
+        disabled_since: float | None = None
+        disabled_confirm_seconds = 15
         xpath = '//img[contains(concat(" ", normalize-space(@class), " "), " _fe_image_viewer_image_fallback_target ")]'
+        next_button_xpath = '//a[contains(concat(" ", normalize-space(@class), " "), " _fe_image_viewer_next_button ")]'
 
         while patience < 100 and len(links) < limit:
             try:
                 # Wait for the viewer to actually advance to a new image (its src differs
                 # from the last one we collected) instead of grabbing it right away - see
                 # NOTE above for why that silently re-read the previous image most of the time.
+                # Once disabled has been seen at least once, no new image is coming - shrink
+                # the wait so confirming the end doesn't also drag in extra dead waiting.
                 start = time.time()
+                wait_timeout = 0.5 if disabled_since is not None else 5
                 img = None
                 src = None
-                while time.time() - start < 5:
+                while time.time() - start < wait_timeout:
                     imgs = driver.find_elements(By.XPATH, xpath)
                     if imgs:
                         candidate = imgs[0].get_attribute("src")
@@ -150,6 +165,22 @@ def collect_naver_full(keyword: str, config: CrawlConfig) -> list[str]:
                         logger.info("%d: %s", len(links), src)
             except StaleElementReferenceException:
                 pass
+
+            try:
+                next_buttons = driver.find_elements(By.XPATH, next_button_xpath)
+                disabled = bool(next_buttons) and (
+                    "disabled" in (next_buttons[0].get_attribute("class") or "").split()
+                )
+            except StaleElementReferenceException:
+                disabled = False
+
+            if disabled:
+                if disabled_since is None:
+                    disabled_since = time.time()
+                elif time.time() - disabled_since >= disabled_confirm_seconds:
+                    break
+            else:
+                disabled_since = None
 
             scroll = get_scroll_position(driver)
             if scroll == last_scroll:
